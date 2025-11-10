@@ -34,4 +34,46 @@ def detect_ingredients_sliding(text, known_ingredients, threshold=75):
         # Clean OCR line
         line_clean = re.sub(r'[^a-z\s]', ' ', line.lower())
         line_clean = re.sub(r'\s+', ' ', line_clean).strip()
-        words = line_clean.split(_
+        words = line_clean.split()
+        # Check all ingredients
+        for ingredient in known_ingredients:
+            ing_words = ingredient.split()
+            if len(words) < len(ing_words):
+                continue
+            # Sliding window over OCR words
+            for i in range(len(words) - len(ing_words) + 1):
+                window = " ".join(words[i:i+len(ing_words)])
+                score = fuzz.partial_ratio(ingredient, window)
+                if score >= threshold:
+                    detected.add(ingredient)
+    return list(detected)
+
+# -----------------------------
+# Main app
+# -----------------------------
+if uploaded_file is not None:
+    # Open image safely
+    with Image.open(uploaded_file) as image:
+        st.image(image, caption='Uploaded Recipe', use_column_width=True)
+
+        # Convert to numpy array for OCR
+        image_array = np.array(image)
+
+        # OCR
+        reader = easyocr.Reader(['en'])
+        result = reader.readtext(image_array)
+        raw_text = "\n".join([res[1] for res in result])  # keep lines
+        st.write("### Extracted Text (Raw OCR):")
+        st.write(raw_text)
+
+        # Detect ingredients
+        detected_ingredients = detect_ingredients_sliding(raw_text, KNOWN_INGREDIENTS, threshold=75)
+        st.write("### Detected Ingredients (Cleaned & Fuzzy):")
+        if detected_ingredients:
+            st.write(", ".join(sorted(detected_ingredients)))
+        else:
+            st.write("No ingredients detected from image.")
+
+        # Suggest Add-Ons
+        add_ons = []
+        if any(x in detected_ingredients for x in ["mozzarella]()_
