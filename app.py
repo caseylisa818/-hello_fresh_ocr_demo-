@@ -3,112 +3,97 @@ from PIL import Image, UnidentifiedImageError
 import easyocr
 import numpy as np
 import re
-from rapidfuzz import fuzz
 
-# Streamlit config call must come first — before any st.write(), st.title(), etc.
+# Page config (must be first Streamlit call)
 st.set_page_config(page_title="HelloFresh OCR Add-on Demo", layout="centered")
 
-# -----------------------------
-# CONFIG / INGREDIENTS
-# -----------------------------
+# Simple ingredient list (expandable)
 KNOWN_INGREDIENTS = [
-    "chicken breast", "chicken thighs", "ground beef", "pork chops",
-    "salmon fillet", "shrimp", "mozzarella cheese", "parmesan cheese",
-    "cheddar cheese", "pasta", "spaghetti", "rice", "lettuce",
+    "chicken", "chicken breast", "parmesan", "parmesan cheese", "mozzarella",
+    "cheese", "pasta", "spaghetti", "rice", "lettuce",
     "tomato", "onion", "garlic", "basil", "olive oil", "carrot",
-    "potato", "black pepper", "salt", "vinegar", "spinach", "mushroom",
-    "cream", "milk", "egg", "bread", "lemon", "lime", "honey",
-    "cinnamon", "nutmeg", "oregano", "thyme", "red bell pepper",
-    "green bell pepper", "yellow bell pepper", "butter", "yogurt"
+    "potato", "pepper", "salt", "vinegar", "spinach", "mushroom",
+    "cream", "milk", "egg", "bread", "lemon", "lime", "butter"
 ]
 
-st.set_page_config(page_title="HelloFresh OCR Add-on Demo", layout="centered")
-st.title("HelloFresh Recipe Add-On Demo (Robust OCR)")
+st.title("HelloFresh Recipe Add-On Demo (Simple)")
 st.write("Upload a recipe image to extract ingredients and suggest add-ons!")
 
-# -----------------------------
-# Cache the OCR reader so it's not reinitialized every interaction
-# -----------------------------
+# Initialize OCR reader once (cached)
 @st.cache_resource
-def get_ocr_reader(lang_list=["en"]):
+def get_reader():
     try:
-        reader = easyocr.Reader(lang_list, gpu=False)  # gpu=False for Cloud compatibility
-        return reader
+        return easyocr.Reader(['en'], gpu=False)
     except Exception as e:
         st.error(f"Failed to initialize OCR reader: {e}")
         return None
 
-reader = get_ocr_reader()
-
+reader = get_reader()
 uploaded_file = st.file_uploader("Choose a recipe image...", type=["jpg", "jpeg", "png"])
 
-# -----------------------------
-# Sliding-window fuzzy matching function
-# -----------------------------
-def detect_ingredients_sliding(text, known_ingredients, threshold=75):
-    detected = set()
-    if not text:
-        return []
-    lines = text.split("\n")
-    for line in lines:
-        # Clean OCR line
-        line_clean = re.sub(r'[^a-z\s]', ' ', line.lower())
-        line_clean = re.sub(r'\s+', ' ', line_clean).strip()
-        if not line_clean:
-            continue
-        words = line_clean.split()
-        # Check all ingredients
-        for ingredient in known_ingredients:
-            ing_words = ingredient.split()
-            if len(words) < len(ing_words):
-                # still attempt partial matches by sliding smaller windows
-                max_window = len(words)
-            else:
-                max_window = len(words) - len(ing_words) + 1
-            for i in range(max(1, max_window)):
-                # Build windows of size equal to ingredient words (or smaller when line shorter)
-                win_size = min(len(ing_words), len(words) - i)
-                window = " ".join(words[i:i+win_size])
-                # Use partial_ratio on both normalized strings
-                score = fuzz.partial_ratio(ingredient, window)
-                if score >= threshold:
-                    detected.add(ingredient)
-                    break  # stop sliding for this ingredient on this line
-    return sorted(detected)
-
-# -----------------------------
-# Main app logic
-# -----------------------------
 if uploaded_file is not None:
     if reader is None:
-        st.error("OCR reader failed to initialize. Please check the logs or try redeploying.")
+        st.error("OCR reader not available.")
     else:
         try:
-            # Safely open image using context manager (prevents 'file not closed' warnings)
             with Image.open(uploaded_file) as image:
-                st.image(image, caption='Uploaded Recipe', use_column_width=True)
+                st.image(image, caption="Uploaded Recipe", use_column_width=True)
 
-                # Convert to numpy array for OCR
+                # Convert to numpy array for EasyOCR
+                image_array = np.array(image)
+
+                # OCR
                 try:
-                    image_array = np.array(image)
+                    ocr_results = reader.readtext(image_array)
                 except Exception as e:
-                    st.error(f"Could not convert uploaded file to an image array: {e}")
-                    image_array = None
+                    st.error(f"OCR processing failed: {e}")
+                    ocr_results = []
 
-                if image_array is not None:
-                    # OCR
-                    try:
-                        ocr_results = reader.readtext(image_array)
-                    except Exception as e:
-                        st.error(f"OCR processing failed: {e}")
-                        ocr_results = []
+                if not ocr_results:
+                    st.warning("No text detected. Try a clearer image.")
+                    raw_text = ""
+                else:
+                    # Join OCR fragments into one cleaned string
+                    raw_text = " ".join([res[1] for res in ocr_results])
 
-                    if not ocr_results:
-                        st.warning("OCR did not detect readable text. Try a clearer photo or higher resolution image.")
-                        raw_text = ""
-                    else:
-                        # Keep each detected piece as a line to improve line-by-line matching
-                        raw_text = "\n".join([res[1] for res in ocr_results])
+                st.write("### Extracted Text (Raw OCR):")
+                st.write(raw_text or "— no text extracted —")
 
-                    st.write("### Extracted Text (Raw OCR):")
-                    st.write(raw_text if raw_text else "— no text extracted —
+                # Basic cleaning
+                text = raw_text.lower()
+                text = re.sub(r'[^a-z\s]', ' ', text)
+                text = re.sub(r'\s+', ' ', text).strip()
+
+                # Detect ingredients by simple presence check
+                detected = []
+                for ingr in KNOWN_INGREDIENTS:
+                    if ingr in text:
+                        detected.append(ingr)
+
+                st.write("### Detected Ingredients:")
+                if detected:
+                    st.write(", ".join(sorted(set(detected))))
+                else:
+                    st.write("No ingredients detected with the simple matcher.")
+
+                # Simple add-on suggestions
+                add_ons = []
+                if any(x in detected for x in ["parmesan", "parmesan cheese", "mozzarella", "cheese"]):
+                    add_ons.append("Extra Parmesan Cheese")
+                if any(x in detected for x in ["chicken", "chicken breast"]):
+                    add_ons.append("Herb Marinade Pack")
+                if any(x in detected for x in ["lettuce", "tomato", "spinach"]):
+                    add_ons.append("Organic Dressing Pack")
+
+                st.write("### Suggested Add-Ons:")
+                if add_ons:
+                    st.write(", ".join(add_ons))
+                else:
+                    st.write("No add-ons suggested.")
+        except UnidentifiedImageError:
+            st.error("Uploaded file is not a valid image. Please upload JPG or PNG.")
+        except Exception as e:
+            st.error(f"Unexpected error: {e}")
+            with st.expander("Debug info"):
+                import traceback
+                st.text(traceback.format_exc())
