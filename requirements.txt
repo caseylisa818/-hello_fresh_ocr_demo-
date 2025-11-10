@@ -2,4 +2,3 @@ streamlit
 pillow
 easyocr
 numpy
-rapidfuzz
