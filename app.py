@@ -3,6 +3,7 @@ from PIL import Image
 import easyocr
 import numpy as np
 import re
+from rapidfuzz import fuzz
 
 # -----------------------------
 # Multi-word ingredient dictionary
@@ -18,7 +19,7 @@ KNOWN_INGREDIENTS = [
     "green bell pepper", "yellow bell pepper", "butter", "yogurt"
 ]
 
-st.title("HelloFresh Recipe Add-On Demo (Robust Multi-Ingredient OCR)")
+st.title("HelloFresh Recipe Add-On Demo (Fuzzy Multi-Ingredient OCR)")
 st.write("Upload a recipe image to extract ingredients and suggest add-ons!")
 
 uploaded_file = st.file_uploader("Choose an image...", type=["jpg","jpeg","png"])
@@ -28,7 +29,7 @@ if uploaded_file is not None:
     image = Image.open(uploaded_file)
     st.image(image, caption='Uploaded Recipe', use_column_width=True)
 
-    # Convert to numpy array
+    # Convert to numpy array for OCR
     image_array = np.array(image)
 
     # OCR
@@ -44,15 +45,15 @@ if uploaded_file is not None:
     text = re.sub(r'\s+', ' ', text)       # collapse multiple spaces
 
     # -----------------------------
-    # Robust ingredient detection
+    # Robust fuzzy ingredient detection
     # -----------------------------
     detected_ingredients = []
     for ingredient in KNOWN_INGREDIENTS:
-        words = ingredient.split()
-        if all(word in text for word in words):
+        score = fuzz.partial_ratio(ingredient, text)
+        if score >= 80:  # threshold can be adjusted
             detected_ingredients.append(ingredient)
 
-    st.write("### Detected Ingredients (Cleaned):")
+    st.write("### Detected Ingredients (Cleaned & Fuzzy):")
     if detected_ingredients:
         st.write(", ".join(sorted(set(detected_ingredients))))
     else:
@@ -73,4 +74,4 @@ if uploaded_file is not None:
     if add_ons:
         st.write(", ".join(add_ons))
     else:
-        st.write("No add-ons detected for these ingredient
+        st.write("No add-ons detected for these ingredients.")
