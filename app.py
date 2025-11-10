@@ -4,7 +4,23 @@ import easyocr
 import numpy as np
 import re
 
-st.title("HelloFresh Recipe Add-On Demo (OCR)")
+# -----------------------------
+# Mini ingredient dictionary
+# -----------------------------
+KNOWN_INGREDIENTS = [
+    "chicken", "beef", "pork", "salmon", "shrimp",
+    "cheese", "parmesan", "mozzarella", "butter",
+    "pasta", "rice", "lettuce", "tomato", "onion",
+    "garlic", "basil", "olive oil", "carrot", "potato",
+    "pepper", "salt", "vinegar", "spinach", "mushroom",
+    "cream", "milk", "egg", "bread", "lemon", "lime",
+    "honey", "cinnamon", "nutmeg", "oregano", "thyme",
+]
+
+# -----------------------------
+# Streamlit App
+# -----------------------------
+st.title("HelloFresh Recipe Add-On Demo (Clean OCR)")
 st.write("Upload a recipe image to extract ingredients and suggest add-ons!")
 
 uploaded_file = st.file_uploader("Choose an image...", type=["jpg","jpeg","png"])
@@ -17,33 +33,36 @@ if uploaded_file is not None:
     # Convert PIL image to numpy array for EasyOCR
     image_array = np.array(image)
 
-    # Initialize EasyOCR reader
+    # OCR with EasyOCR
     reader = easyocr.Reader(['en'])
     result = reader.readtext(image_array)
+    raw_text = " ".join([res[1] for res in result])
+    st.write("### Extracted Text (Raw OCR):")
+    st.write(raw_text)
 
-    # Extract text from OCR results
-    text = " ".join([res[1] for res in result])
-    st.write("### Extracted Text:")
-    st.write(text)
+    # -----------------------------
+    # Clean OCR Text
+    # -----------------------------
+    text = raw_text.lower()
+    text = re.sub(r'[^a-z\s]', ' ', text)  # remove non-letter chars
+    words = text.split()
 
-    # Simple ingredient extraction
-    ingredients = re.split(r'[\n,]+', text)
-    ingredients = [i.strip() for i in ingredients if i.strip() != ""]
+    # Keep only known ingredients
+    ingredients = [w for w in words if w in KNOWN_INGREDIENTS]
+    st.write("### Detected Ingredients (Cleaned):")
+    st.write(", ".join(sorted(set(ingredients))))  # remove duplicates
 
-    st.write("### Detected Ingredients:")
-    st.write(", ".join(ingredients))
-
-    # Example add-ons based on ingredients
+    # -----------------------------
+    # Suggest Add-Ons
+    # -----------------------------
     add_ons = []
-    for item in ingredients:
-        item_lower = item.lower()
-        if "cheese" in item_lower or "pasta" in item_lower:
-            add_ons.append("Extra Parmesan Cheese")
-        if "chicken" in item_lower or "beef" in item_lower:
-            add_ons.append("Herb Marinade Pack")
-        if "lettuce" in item_lower or "salad" in item_lower:
-            add_ons.append("Organic Dressing Pack")
-
+    if any(x in ingredients for x in ["cheese", "parmesan", "mozzarella", "pasta"]):
+        add_ons.append("Extra Parmesan Cheese")
+    if any(x in ingredients for x in ["chicken", "beef", "pork", "shrimp", "salmon"]):
+        add_ons.append("Herb Marinade Pack")
+    if any(x in ingredients for x in ["lettuce", "tomato", "spinach", "carrot"]):
+        add_ons.append("Organic Dressing Pack")
+    
     st.write("### Suggested Add-Ons:")
     if add_ons:
         st.write(", ".join(add_ons))
