@@ -5,6 +5,9 @@ import numpy as np
 import re
 from rapidfuzz import fuzz
 
+# Streamlit config call must come first — before any st.write(), st.title(), etc.
+st.set_page_config(page_title="HelloFresh OCR Add-on Demo", layout="centered")
+
 # -----------------------------
 # CONFIG / INGREDIENTS
 # -----------------------------
