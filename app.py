@@ -18,7 +18,7 @@ KNOWN_INGREDIENTS = [
     "green bell pepper", "yellow bell pepper", "butter", "yogurt"
 ]
 
-st.title("HelloFresh Recipe Add-On Demo (Multi-Ingredient OCR)")
+st.title("HelloFresh Recipe Add-On Demo (Robust Multi-Ingredient OCR)")
 st.write("Upload a recipe image to extract ingredients and suggest add-ons!")
 
 uploaded_file = st.file_uploader("Choose an image...", type=["jpg","jpeg","png"])
@@ -38,20 +38,29 @@ if uploaded_file is not None:
     st.write("### Extracted Text (Raw OCR):")
     st.write(raw_text)
 
-    # Clean text
+    # Clean OCR text
     text = raw_text.lower()
-    text = re.sub(r'[^a-z\s]', ' ', text)  # remove non-letter chars
+    text = re.sub(r'[^a-z\s]', ' ', text)  # remove non-letter characters
+    text = re.sub(r'\s+', ' ', text)       # collapse multiple spaces
 
-    # Detect ingredients (multi-word matching)
+    # -----------------------------
+    # Robust ingredient detection
+    # -----------------------------
     detected_ingredients = []
     for ingredient in KNOWN_INGREDIENTS:
-        if ingredient in text:
+        words = ingredient.split()
+        if all(word in text for word in words):
             detected_ingredients.append(ingredient)
 
     st.write("### Detected Ingredients (Cleaned):")
-    st.write(", ".join(sorted(set(detected_ingredients))))
+    if detected_ingredients:
+        st.write(", ".join(sorted(set(detected_ingredients))))
+    else:
+        st.write("No ingredients detected from image.")
 
+    # -----------------------------
     # Suggest Add-Ons
+    # -----------------------------
     add_ons = []
     if any(x in detected_ingredients for x in ["mozzarella cheese", "parmesan cheese", "cheddar cheese", "pasta", "spaghetti"]):
         add_ons.append("Extra Parmesan Cheese")
@@ -64,4 +73,4 @@ if uploaded_file is not None:
     if add_ons:
         st.write(", ".join(add_ons))
     else:
-        st.write("No add-ons detected for these ingredients.")
+        st.write("No add-ons detected for these ingredient
