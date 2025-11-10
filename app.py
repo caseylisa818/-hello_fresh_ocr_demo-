@@ -5,64 +5,61 @@ import numpy as np
 import re
 
 # -----------------------------
-# Mini ingredient dictionary
+# Multi-word ingredient dictionary
 # -----------------------------
 KNOWN_INGREDIENTS = [
-    "chicken", "beef", "pork", "salmon", "shrimp",
-    "cheese", "parmesan", "mozzarella", "butter",
-    "pasta", "rice", "lettuce", "tomato", "onion",
-    "garlic", "basil", "olive oil", "carrot", "potato",
-    "pepper", "salt", "vinegar", "spinach", "mushroom",
-    "cream", "milk", "egg", "bread", "lemon", "lime",
-    "honey", "cinnamon", "nutmeg", "oregano", "thyme",
+    "chicken breast", "chicken thighs", "ground beef", "pork chops",
+    "salmon fillet", "shrimp", "mozzarella cheese", "parmesan cheese",
+    "cheddar cheese", "pasta", "spaghetti", "rice", "lettuce",
+    "tomato", "onion", "garlic", "basil", "olive oil", "carrot",
+    "potato", "black pepper", "salt", "vinegar", "spinach", "mushroom",
+    "cream", "milk", "egg", "bread", "lemon", "lime", "honey",
+    "cinnamon", "nutmeg", "oregano", "thyme", "red bell pepper",
+    "green bell pepper", "yellow bell pepper", "butter", "yogurt"
 ]
 
-# -----------------------------
-# Streamlit App
-# -----------------------------
-st.title("HelloFresh Recipe Add-On Demo (Clean OCR)")
+st.title("HelloFresh Recipe Add-On Demo (Multi-Ingredient OCR)")
 st.write("Upload a recipe image to extract ingredients and suggest add-ons!")
 
 uploaded_file = st.file_uploader("Choose an image...", type=["jpg","jpeg","png"])
 
 if uploaded_file is not None:
-    # Open the uploaded image with PIL
+    # Open image
     image = Image.open(uploaded_file)
     st.image(image, caption='Uploaded Recipe', use_column_width=True)
 
-    # Convert PIL image to numpy array for EasyOCR
+    # Convert to numpy array
     image_array = np.array(image)
 
-    # OCR with EasyOCR
+    # OCR
     reader = easyocr.Reader(['en'])
     result = reader.readtext(image_array)
     raw_text = " ".join([res[1] for res in result])
     st.write("### Extracted Text (Raw OCR):")
     st.write(raw_text)
 
-    # -----------------------------
-    # Clean OCR Text
-    # -----------------------------
+    # Clean text
     text = raw_text.lower()
     text = re.sub(r'[^a-z\s]', ' ', text)  # remove non-letter chars
-    words = text.split()
 
-    # Keep only known ingredients
-    ingredients = [w for w in words if w in KNOWN_INGREDIENTS]
+    # Detect ingredients (multi-word matching)
+    detected_ingredients = []
+    for ingredient in KNOWN_INGREDIENTS:
+        if ingredient in text:
+            detected_ingredients.append(ingredient)
+
     st.write("### Detected Ingredients (Cleaned):")
-    st.write(", ".join(sorted(set(ingredients))))  # remove duplicates
+    st.write(", ".join(sorted(set(detected_ingredients))))
 
-    # -----------------------------
     # Suggest Add-Ons
-    # -----------------------------
     add_ons = []
-    if any(x in ingredients for x in ["cheese", "parmesan", "mozzarella", "pasta"]):
+    if any(x in detected_ingredients for x in ["mozzarella cheese", "parmesan cheese", "cheddar cheese", "pasta", "spaghetti"]):
         add_ons.append("Extra Parmesan Cheese")
-    if any(x in ingredients for x in ["chicken", "beef", "pork", "shrimp", "salmon"]):
+    if any(x in detected_ingredients for x in ["chicken breast", "chicken thighs", "ground beef", "pork chops", "shrimp", "salmon fillet"]):
         add_ons.append("Herb Marinade Pack")
-    if any(x in ingredients for x in ["lettuce", "tomato", "spinach", "carrot"]):
+    if any(x in detected_ingredients for x in ["lettuce", "tomato", "spinach", "carrot", "red bell pepper", "green bell pepper", "yellow bell pepper"]):
         add_ons.append("Organic Dressing Pack")
-    
+
     st.write("### Suggested Add-Ons:")
     if add_ons:
         st.write(", ".join(add_ons))
