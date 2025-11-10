@@ -4,10 +4,9 @@ import easyocr
 import numpy as np
 import re
 
-# Page config (must be first Streamlit call)
-st.set_page_config(page_title="HelloFresh OCR Add-on Demo", layout="centered")
+st.set_page_config(page_title="HelloFresh Add-On Demo", layout="centered")
 
-# Simple ingredient list (expandable)
+# Known ingredients
 KNOWN_INGREDIENTS = [
     "chicken", "chicken breast", "parmesan", "parmesan cheese", "mozzarella",
     "cheese", "pasta", "spaghetti", "rice", "lettuce",
@@ -16,84 +15,92 @@ KNOWN_INGREDIENTS = [
     "cream", "milk", "egg", "bread", "lemon", "lime", "butter"
 ]
 
-st.title("HelloFresh Recipe Add-On Demo (Simple)")
-st.write("Upload a recipe image to extract ingredients and suggest add-ons!")
+# Mock inventory (pretend backend)
+INVENTORY = {
+    "chicken": True,
+    "parmesan": False,
+    "mozzarella": True,
+    "tomato": True,
+    "basil": True,
+    "garlic": False,
+    "lettuce": True,
+    "spinach": True,
+    "butter": True,
+    "olive oil": True,
+}
 
-# Initialize OCR reader once (cached)
+# Add-on logic mapping
+ADD_ONS = {
+    "chicken": "Herb Marinade Pack",
+    "parmesan": "Extra Parmesan Cheese",
+    "mozzarella": "Cheese Upgrade Pack",
+    "tomato": "Organic Tomato Sauce Pouch",
+    "lettuce": "Dressing Variety Kit",
+    "basil": "Fresh Herb Bundle",
+    "garlic": "Garlic Butter Kit",
+    "spinach": "Green Boost Pack",
+}
+
+st.title("🍽️ HelloFresh Add-On Demo")
+st.caption("Upload a recipe image to extract ingredients and match with HelloFresh inventory.")
+
 @st.cache_resource
 def get_reader():
-    try:
-        return easyocr.Reader(['en'], gpu=False)
-    except Exception as e:
-        st.error(f"Failed to initialize OCR reader: {e}")
-        return None
+    return easyocr.Reader(['en'], gpu=False)
 
 reader = get_reader()
-uploaded_file = st.file_uploader("Choose a recipe image...", type=["jpg", "jpeg", "png"])
+uploaded_file = st.file_uploader("Upload recipe photo...", type=["jpg", "jpeg", "png"])
 
-if uploaded_file is not None:
-    if reader is None:
-        st.error("OCR reader not available.")
-    else:
-        try:
-            with Image.open(uploaded_file) as image:
-                st.image(image, caption="Uploaded Recipe", use_column_width=True)
+if uploaded_file:
+    try:
+        with Image.open(uploaded_file) as image:
+            st.image(image, caption="Uploaded Recipe", use_column_width=True)
+            image_array = np.array(image)
+            ocr_results = reader.readtext(image_array)
+            raw_text = " ".join([res[1] for res in ocr_results]).lower()
+            raw_text = re.sub(r'[^a-z\s]', ' ', raw_text)
 
-                # Convert to numpy array for EasyOCR
-                image_array = np.array(image)
+            detected = [i for i in KNOWN_INGREDIENTS if i in raw_text]
 
-                # OCR
-                try:
-                    ocr_results = reader.readtext(image_array)
-                except Exception as e:
-                    st.error(f"OCR processing failed: {e}")
-                    ocr_results = []
+            st.subheader("🧾 Detected Ingredients:")
+            if detected:
+                st.write(", ".join(sorted(set(detected))))
+            else:
+                st.warning("No ingredients detected.")
 
-                if not ocr_results:
-                    st.warning("No text detected. Try a clearer image.")
-                    raw_text = ""
+            # Inventory and add-ons display
+            st.subheader("📦 Inventory Check:")
+            in_stock, out_stock = [], []
+            for i in detected:
+                if INVENTORY.get(i, False):
+                    in_stock.append(i)
                 else:
-                    # Join OCR fragments into one cleaned string
-                    raw_text = " ".join([res[1] for res in ocr_results])
+                    out_stock.append(i)
 
-                st.write("### Extracted Text (Raw OCR):")
-                st.write(raw_text or "— no text extracted —")
-
-                # Basic cleaning
-                text = raw_text.lower()
-                text = re.sub(r'[^a-z\s]', ' ', text)
-                text = re.sub(r'\s+', ' ', text).strip()
-
-                # Detect ingredients by simple presence check
-                detected = []
-                for ingr in KNOWN_INGREDIENTS:
-                    if ingr in text:
-                        detected.append(ingr)
-
-                st.write("### Detected Ingredients:")
-                if detected:
-                    st.write(", ".join(sorted(set(detected))))
+            col1, col2 = st.columns(2)
+            with col1:
+                st.success("✅ In Stock:")
+                if in_stock:
+                    st.write(", ".join(in_stock))
                 else:
-                    st.write("No ingredients detected with the simple matcher.")
-
-                # Simple add-on suggestions
-                add_ons = []
-                if any(x in detected for x in ["parmesan", "parmesan cheese", "mozzarella", "cheese"]):
-                    add_ons.append("Extra Parmesan Cheese")
-                if any(x in detected for x in ["chicken", "chicken breast"]):
-                    add_ons.append("Herb Marinade Pack")
-                if any(x in detected for x in ["lettuce", "tomato", "spinach"]):
-                    add_ons.append("Organic Dressing Pack")
-
-                st.write("### Suggested Add-Ons:")
-                if add_ons:
-                    st.write(", ".join(add_ons))
+                    st.write("None")
+            with col2:
+                st.error("❌ Out of Stock:")
+                if out_stock:
+                    st.write(", ".join(out_stock))
                 else:
-                    st.write("No add-ons suggested.")
-        except UnidentifiedImageError:
-            st.error("Uploaded file is not a valid image. Please upload JPG or PNG.")
-        except Exception as e:
-            st.error(f"Unexpected error: {e}")
-            with st.expander("Debug info"):
-                import traceback
-                st.text(traceback.format_exc())
+                    st.write("None")
+
+            # Suggested add-ons for available ingredients
+            st.subheader("💡 Suggested Add-Ons:")
+            suggestions = [ADD_ONS[i] for i in in_stock if i in ADD_ONS]
+            if suggestions:
+                for s in suggestions:
+                    st.write(f"• {s}")
+            else:
+                st.write("No add-ons available for current inventory.")
+
+    except UnidentifiedImageError:
+        st.error("Not a valid image file.")
+    except Exception as e:
+        st.error(f"Error: {e}")
