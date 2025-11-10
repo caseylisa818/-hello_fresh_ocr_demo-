@@ -73,7 +73,3 @@ if uploaded_file is not None:
             st.write(", ".join(sorted(detected_ingredients)))
         else:
             st.write("No ingredients detected from image.")
-
-        # Suggest Add-Ons
-        add_ons = []
-        if any(x in detected_ingredients for x in ["mozzarella]()_
