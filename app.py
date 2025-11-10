@@ -19,9 +19,19 @@ KNOWN_INGREDIENTS = [
     "green bell pepper", "yellow bell pepper", "butter", "yogurt"
 ]
 
-st.title("HelloFresh Recipe Add-On Demo (Reliable Multi-Ingredient OCR)")
+st.title("HelloFresh Recipe Add-On Demo (Sliding-Window Fuzzy OCR)")
 st.write("Upload a recipe image to extract ingredients and suggest add-ons!")
 
-uploaded_file = st.file_uploader("Choose an image...", type=["jpg","jpeg","png"])
+uploaded_file = st.file_uploader("Choose a recipe image...", type=["jpg","jpeg","png"])
 
-def detect_ingredients_fuzzy(text, known_ingredients, thres_
+# -----------------------------
+# Sliding-window fuzzy matching function
+# -----------------------------
+def detect_ingredients_sliding(text, known_ingredients, threshold=75):
+    detected = set()
+    lines = text.split("\n")
+    for line in lines:
+        # Clean OCR line
+        line_clean = re.sub(r'[^a-z\s]', ' ', line.lower())
+        line_clean = re.sub(r'\s+', ' ', line_clean).strip()
+        words = line_clean.split(_
